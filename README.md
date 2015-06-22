@@ -31,6 +31,9 @@ TCP connection is established from this IP. You can see that big __TODO__ in
 the code, where you can actually change the incoming IP and port to anything
 you like.
 
+Since 3.14, need_ipv4_conntrack() is removed, so you'll have to modprobe
+nf_conntrack_ipv4 manually.
+
 Also UDP and IPv6 are not yet implemented.
 
 Well, it's my first time doing kernel programming, so be gentle please.

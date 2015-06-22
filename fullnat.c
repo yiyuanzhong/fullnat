@@ -18,18 +18,19 @@
 #include <linux/module.h>
 #include <linux/netfilter.h>
 #include <linux/netfilter_ipv4.h>
+#include <linux/version.h>
 #include <net/netfilter/nf_conntrack_core.h>
 #include <net/tcp.h>
 #include <net/udp.h>
 
-#define RIP_HOOKNUM_INPUT   NF_INET_LOCAL_IN
-#define RIP_HOOKNUM_OUTPUT  NF_INET_LOCAL_OUT
+#define RIP_HOOKNUM_INPUT   NF_INET_PRE_ROUTING
+#define RIP_HOOKNUM_OUTPUT  NF_INET_POST_ROUTING
 
 /* Avoid those in enum ip_conntrack_status. */
 #define RIP_STATUS_NEEDED_BIT 14
 
-static const __be32 kReal = htonl(0xC0A8F380); /* 192.168.243.128 */
-static const __be32 kFake = htonl(0xC0A80307); /* 192.168.3.7 */
+static const __be32 kReal = htonl(0xC0A81F01); /* 192.168.31.1 */
+static const __be32 kFake = htonl(0x80402010); /* 128.64.32.16 */
 
 struct rip_order {
     __be32 faddr;
@@ -280,12 +281,20 @@ static unsigned int rip_hook_output_udp(struct sk_buff *skb)
     return NF_ACCEPT;
 }
 
-static unsigned int rip_inet_hook(unsigned int hook,
-                                  struct sk_buff *skb,
-                                  const struct net_device *in,
-                                  const struct net_device *out,
-                                  int (*okfn)(struct sk_buff *))
+static unsigned int rip_inet_hook(
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 13, 0)
+        const struct nf_hook_ops *ops,
+#else
+        unsigned int hook,
+#endif
+        struct sk_buff *skb,
+        const struct net_device *in,
+        const struct net_device *out,
+        int (*okfn)(struct sk_buff *))
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 13, 0)
+    unsigned int hook = ops->hooknum;
+#endif
     struct iphdr *iph;
     unsigned int ret;
 
@@ -332,7 +341,9 @@ static struct nf_hook_ops lvshooks[] __read_mostly = {
 
 static int __init rip_initialize(void)
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 14, 0)
     need_ipv4_conntrack();
+#endif
     return nf_register_hooks(lvshooks, ARRAY_SIZE(lvshooks));
 }
 
