@@ -1,4 +1,4 @@
-/* Copyright 2014 yiyuanzhong@gmail.com (Yiyuan Zhong)
+/* Copyright 2015 yiyuanzhong@gmail.com (Yiyuan Zhong)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -12,6 +12,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+#include "fullnat.h"
 
 #include <linux/ip.h>
 #include <linux/kernel.h>
@@ -223,6 +225,10 @@ static unsigned int rip_hook_input_tcp(struct sk_buff *skb)
             return NF_DROP;
         }
 
+    } else if (fullnat_mode_get() == 0) {
+        /* Disabled. */
+        return NF_ACCEPT;
+
     } else if (ctinfo != IP_CT_NEW && ctinfo != IP_CT_RELATED) {
         /* Existing connection not being manipulated. */
         return NF_ACCEPT;
@@ -339,21 +345,19 @@ static struct nf_hook_ops lvshooks[] __read_mostly = {
     },
 };
 
-static int __init rip_initialize(void)
+int rip_initialize(void)
 {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 14, 0)
     need_ipv4_conntrack();
 #endif
-    return nf_register_hooks(lvshooks, ARRAY_SIZE(lvshooks));
+    if (nf_register_hooks(lvshooks, ARRAY_SIZE(lvshooks))) {
+        return -ENOMEM;
+    }
+
+    return 0;
 }
 
-static void __exit rip_shutdown(void)
+void rip_shutdown(void)
 {
     nf_unregister_hooks(lvshooks, ARRAY_SIZE(lvshooks));
 }
-
-module_init(rip_initialize);
-module_exit(rip_shutdown);
-
-MODULE_LICENSE("GPL");
-MODULE_AUTHOR("yiyuanzhong@gmail.com (Yiyuan Zhong)");
