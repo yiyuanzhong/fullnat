@@ -1,7 +1,7 @@
 FULLNAT
 =======
 ## What is LVS-FULLNAT?
-Well, fullnat is the forth mode for LVS, it's technically identical to LVS-NAT
+Well, fullnat is the fourth mode for LVS, it's technically identical to LVS-NAT
 But it tries to preserve actual client IP addresses to real servers. In order
 to do that, FULLNAT server alters the incoming packet to inject the actual
 IP address into TCP/SYN packet, and real servers must load a kernel module
