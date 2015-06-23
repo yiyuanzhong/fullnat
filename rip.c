@@ -25,8 +25,8 @@
 #include <net/tcp.h>
 #include <net/udp.h>
 
-#define RIP_HOOKNUM_INPUT   NF_INET_PRE_ROUTING
-#define RIP_HOOKNUM_OUTPUT  NF_INET_POST_ROUTING
+#define RIP_HOOKNUM_INPUT   NF_INET_LOCAL_IN
+#define RIP_HOOKNUM_OUTPUT  NF_INET_LOCAL_OUT
 
 /* Avoid those in enum ip_conntrack_status. */
 #define RIP_STATUS_NEEDED_BIT 14

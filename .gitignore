@@ -1,6 +1,7 @@
 .tmp_versions/
 Module.symvers
 modules.order
+*.ko.unsigned
 .*.cmd
 *.mod.*
 *.ko
