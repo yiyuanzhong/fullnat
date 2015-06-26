@@ -21,7 +21,7 @@ static int one = 1;
 static int zero = 0;
 static struct ctl_table_header *g_header;
 
-static struct ctl_table sysfs_table[] = {
+static struct ctl_table sysfs_table[] __read_mostly = {
     {
         .procname = "tcp6_mode",
         .data = &g_mode_tcp6,

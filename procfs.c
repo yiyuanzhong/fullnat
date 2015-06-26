@@ -48,7 +48,7 @@ static int procfs_close(struct inode *inode, struct file *file)
     return 0;
 }
 
-static struct file_operations g_fileops = {
+static struct file_operations g_fileops __read_mostly = {
     .open    = procfs_open,
     .read    = seq_read,
     .llseek  = seq_lseek,
