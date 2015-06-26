@@ -17,22 +17,10 @@
 
 #include <linux/module.h>
 
-static int g_mode = 0;
-
-int fullnat_mode_get(void)
-{
-    return g_mode;
-}
-
-int fullnat_mode_set(int mode)
-{
-    if (mode < 0 || mode > 1) {
-        return -1;
-    }
-
-    g_mode = mode;
-    return 0;
-}
+int g_mode_tcp6 = 0;
+int g_mode_udp6 = 0;
+int g_mode_tcp = 0;
+int g_mode_udp = 0;
 
 static int __init fullnat_initialize(void)
 {
@@ -43,8 +31,15 @@ static int __init fullnat_initialize(void)
         return ret;
     }
 
+    ret = sysfs_initialize();
+    if (ret) {
+        procfs_shutdown();
+        return ret;
+    }
+
     ret = rip_initialize();
     if (ret) {
+        sysfs_shutdown();
         procfs_shutdown();
         return ret;
     }
@@ -54,8 +49,9 @@ static int __init fullnat_initialize(void)
 
 static void __exit fullnat_shutdown(void)
 {
-    procfs_shutdown();
     rip_shutdown();
+    sysfs_shutdown();
+    procfs_shutdown();
 }
 
 module_init(fullnat_initialize);

@@ -225,7 +225,7 @@ static unsigned int rip_hook_input_tcp(struct sk_buff *skb)
             return NF_DROP;
         }
 
-    } else if (fullnat_mode_get() == 0) {
+    } else if (g_mode_tcp == 0) {
         /* Disabled. */
         return NF_ACCEPT;
 

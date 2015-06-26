@@ -16,13 +16,18 @@
 #ifndef __FULLNAT_H__
 #define __FULLNAT_H__
 
+extern int sysfs_initialize(void);
+extern void sysfs_shutdown(void);
+
 extern int procfs_initialize(void);
 extern void procfs_shutdown(void);
 
 extern int rip_initialize(void);
 extern void rip_shutdown(void);
 
-extern int fullnat_mode_set(int mode);
-extern int fullnat_mode_get(void);
+extern int g_mode_tcp6;
+extern int g_mode_udp6;
+extern int g_mode_tcp;
+extern int g_mode_udp;
 
 #endif /* __FULLNAT_H__ */

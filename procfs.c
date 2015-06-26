@@ -21,51 +21,14 @@
 
 #include "fullnat.h"
 
-#define PROCFS_FILENAME "fullnat_mode"
-#define PROCFS_BUFFER_LENGTH 16
-
-static ssize_t procfs_write(struct file *file,
-                            const char *buffer,
-                            size_t length,
-                            loff_t *offset)
-{
-    char buf[PROCFS_BUFFER_LENGTH + 1];
-    unsigned long ret;
-    char *ptr;
-
-    if (*offset) {
-        return -EINVAL;
-    } else if (!length) {
-        return 0;
-    }
-
-    *offset += length;
-    if (length > PROCFS_BUFFER_LENGTH) {
-        return -EINVAL;
-    }
-
-    if (copy_from_user(buf, buffer, length)) {
-        return -EFAULT;
-    }
-
-    buf[length] = '\0';
-    ret = simple_strtoul(buf, &ptr, 10);
-    if (ptr == buf) {
-        return -EINVAL;
-    } else if (*ptr != '\r' && *ptr != '\n' && *ptr != '\0') {
-        return -EINVAL;
-    }
-
-    if (fullnat_mode_set((int)ret)) {
-        return -EINVAL;
-    }
-
-    return length;
-}
+#define PROCFS_FILENAME "fullnat"
 
 static int procfs_seq_show(struct seq_file *p, void *v)
 {
-    seq_printf(p, "%d\n", fullnat_mode_get());
+    seq_printf(p, "tcp6_mode=%d\n", g_mode_tcp6);
+    seq_printf(p, "udp6_mode=%d\n", g_mode_udp6);
+    seq_printf(p, "tcp_mode=%d\n", g_mode_tcp);
+    seq_printf(p, "udp_mode=%d\n", g_mode_udp);
     return 0;
 }
 
@@ -89,14 +52,13 @@ static struct file_operations g_fileops = {
     .open    = procfs_open,
     .read    = seq_read,
     .llseek  = seq_lseek,
-    .write   = procfs_write,
     .release = procfs_close,
 };
 
 int procfs_initialize(void)
 {
     if (!proc_create_data(PROCFS_FILENAME,
-                          S_IRUGO | S_IWUSR,
+                          S_IRUGO,
                           init_net.proc_net,
                           &g_fileops,
                           NULL)) {
