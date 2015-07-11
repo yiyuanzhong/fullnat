@@ -31,9 +31,6 @@
 /* Avoid those in enum ip_conntrack_status. */
 #define RIP_STATUS_NEEDED_BIT 14
 
-static const __be32 kReal = htonl(0xC0A81F01); /* 192.168.31.1 */
-static const __be32 kFake = htonl(0x80402010); /* 128.64.32.16 */
-
 struct rip_order {
     __be32 faddr;
     __be32 taddr;
@@ -182,14 +179,14 @@ static int rip_needed_tcp(struct sk_buff *skb, struct rip_order *order)
     tcp = rip_tcp_hdr(skb);
 
     /* TODO(yiyuanzhong): extract original information here. */
-    if (iph->saddr != kReal) {
+    if ((ntohl(iph->saddr) & 0xFFFF0000) != 0xC0A80000) { /* 192.168.0.0/16 */
         return 1;
     }
 
     order->faddr = iph->saddr;
-    order->taddr = kFake;
+    order->taddr = htonl((ntohl(iph->saddr) & 0x0000FFFF) | 0x01010000);; /* 1.1.0.0/16 */
     order->fport = tcp->source;
-    order->tport = tcp->source;
+    order->tport = htons(ntohs(tcp->source) & 0x03FF); /* Like <1024 */
 
     /* Check again. */
     if (unlikely(order->faddr == order->taddr && order->fport == order->tport)) {
@@ -242,7 +239,8 @@ static unsigned int rip_hook_input_tcp(struct sk_buff *skb)
         /* Make sure conntrack can translate the packet back. */
         reply = &nfct->tuplehash[IP_CT_DIR_REPLY].tuple;
         tuple = *reply;
-        tuple.dst.u3.ip = kFake;
+        tuple.dst.u3.ip = order.taddr;
+        tuple.dst.u.tcp.port = order.tport;
         nf_conntrack_alter_reply(nfct, &tuple);
     }
 
