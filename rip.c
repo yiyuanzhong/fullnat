@@ -66,7 +66,6 @@ static unsigned int rip_manipulate_tcp(struct sk_buff *skb,
     struct iphdr *iph;
     struct rtable *rt;
     int datalen;
-    int hdrlen;
     int hdroff;
 
     if (!skb_make_writable(skb, skb->len)) {
@@ -74,8 +73,15 @@ static unsigned int rip_manipulate_tcp(struct sk_buff *skb,
     }
 
     iph = rip_ip_hdr(skb);
-    tcp = rip_tcp_hdr(skb);
+    hdroff = skb_network_offset(skb) + iph->ihl * 4;
 
+    /* TCP header inside a returned ICMP packet. */
+    if (skb->len < hdroff + sizeof(struct tcphdr)) {
+        return NF_ACCEPT;
+    }
+
+    /* Manipulate packet. */
+    tcp = rip_tcp_hdr(skb);
     if (snat_or_dnat) {
         iph->saddr = order->taddr;
         tcp->source = order->tport;
@@ -90,20 +96,8 @@ static unsigned int rip_manipulate_tcp(struct sk_buff *skb,
         }
     }
 
-    /* Guaranteed length. */
-    hdrlen = 8;
-    hdroff = skb_network_offset(skb) + iph->ihl * 4;
-    if (skb->len >= hdroff + sizeof(struct tcphdr)) {
-        hdrlen = sizeof(struct tcphdr);
-    }
-
     /* Calculate IP checksum. */
     ip_send_check(iph);
-
-    /* TCP header inside a returned ICMP packet. */
-    if (hdrlen < sizeof(struct tcphdr)) {
-        return NF_ACCEPT;
-    }
 
     /* Calculate TCP checksum. */
     rt = skb_rtable(skb);
