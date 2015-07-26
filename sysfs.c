@@ -29,7 +29,7 @@ static struct ctl_table sysfs_table[] __read_mostly = {
         .mode = 0644,
         .proc_handler = proc_dointvec_minmax,
         .extra1 = &zero,
-        .extra2 = &one,
+        .extra2 = &zero,
     },
     {
         .procname = "tcp_mode",
@@ -47,7 +47,7 @@ static struct ctl_table sysfs_table[] __read_mostly = {
         .mode = 0644,
         .proc_handler = proc_dointvec_minmax,
         .extra1 = &zero,
-        .extra2 = &one,
+        .extra2 = &zero,
     },
     {
         .procname = "udp_mode",
@@ -56,7 +56,7 @@ static struct ctl_table sysfs_table[] __read_mostly = {
         .mode = 0644,
         .proc_handler = proc_dointvec_minmax,
         .extra1 = &zero,
-        .extra2 = &one,
+        .extra2 = &zero,
     },
     {}
 };
