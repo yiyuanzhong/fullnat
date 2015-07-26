@@ -23,14 +23,6 @@ incoming packets and does DNAT on outgoing packets. There's no need to patch
 anything, and as long as netfilter/conntrack is present in the kernel, you
 can simply load the module and see what happens.
 
-## TODO?
-I don't really have time to work on FULLNAT servers, so I didn't write the
-codes to extract information from SYN packets. Instead I hardcoded an incoming
-IP address, and change it into a hardcoded __fake__ IP address whenever a new
-TCP connection is established from this IP. You can see that big __TODO__ in
-the code, where you can actually change the incoming IP and port to anything
-you like.
-
 Since 3.14, need_ipv4_conntrack() is removed, so you'll have to modprobe
 nf_conntrack_ipv4 manually.
 

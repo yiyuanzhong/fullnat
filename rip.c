@@ -31,6 +31,9 @@
 /* Avoid those in enum ip_conntrack_status. */
 #define RIP_STATUS_NEEDED_BIT 14
 
+#define RIP_OPCODE 200
+#define RIP_OPSIZE 8
+
 struct rip_order {
     __be32 faddr;
     __be32 taddr;
@@ -166,34 +169,67 @@ static bool rip_get_order_output_tcp(struct sk_buff *skb, struct rip_order *orde
 
 static int rip_needed_tcp(struct sk_buff *skb, struct rip_order *order)
 {
+    unsigned char *ptr;
     struct tcphdr *tcp;
     struct iphdr *iph;
+    int opcode;
+    int opsize;
+    int length;
 
     /* I need to dereference TCP header so make it linear. */
     iph = rip_ip_hdr(skb);
-    if (!skb_make_writable(skb, skb_network_offset(skb) + iph->ihl * 4 + 8)) {
+    if (!skb_make_writable(skb, skb_network_offset(skb) + iph->ihl * 4)) {
         return -1;
     }
 
     iph = rip_ip_hdr(skb);
     tcp = rip_tcp_hdr(skb);
 
-    /* TODO(yiyuanzhong): extract original information here. */
-    if ((ntohl(iph->saddr) & 0xFFFF0000) != 0xC0A80000) { /* 192.168.0.0/16 */
-        return 1;
+    length = (tcp->doff * 4) - sizeof (struct tcphdr);
+    ptr = (unsigned char *) (tcp + 1);
+
+    while (length > 0) {
+        opcode = *ptr++;
+        switch (opcode) {
+        case TCPOPT_EOL:
+            return 1;
+
+        case TCPOPT_NOP: /* Ref: RFC 793 section 3.1 */
+            --length;
+            continue;
+
+        default:
+            opsize = *ptr++;
+            if (opsize < 2) { /* "silly options" */
+                return 1;
+            }
+
+            if (opsize > length) {
+                return 1; /* don't parse partial options */
+            }
+
+            if (opcode == RIP_OPCODE && opsize == RIP_OPSIZE) {
+                order->faddr = iph->saddr;
+                order->fport = tcp->source;
+                memcpy(&order->tport, ptr, 2);
+                memcpy(&order->taddr, ptr + 2, 4);
+
+                /* Check again. */
+                if (unlikely(order->faddr == order->taddr &&
+                             order->fport == order->tport)) {
+
+                    return 1;
+                }
+
+                return 0;
+            }
+
+            ptr += opsize - 2;
+            length -= opsize;
+        }
     }
 
-    order->faddr = iph->saddr;
-    order->taddr = htonl((ntohl(iph->saddr) & 0x0000FFFF) | 0x01010000);; /* 1.1.0.0/16 */
-    order->fport = tcp->source;
-    order->tport = htons(ntohs(tcp->source) & 0x03FF); /* Like <1024 */
-
-    /* Check again. */
-    if (unlikely(order->faddr == order->taddr && order->fport == order->tport)) {
-        return 1;
-    }
-
-    return 0;
+    return 1;
 }
 
 static unsigned int rip_hook_input_tcp(struct sk_buff *skb)
