@@ -91,7 +91,11 @@ static unsigned int rip_manipulate_tcp(struct sk_buff *skb,
         tcp->dest = order->tport;
 
         /* Maybe I need to rewire. */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0)
+        if (ip_route_me_harder(dev_net(skb_dst(skb)->dev), skb, RTN_UNSPEC)) {
+#else
         if (ip_route_me_harder(skb, RTN_UNSPEC)) {
+#endif
             return NF_DROP;
         }
     }
@@ -315,7 +319,7 @@ static unsigned int rip_hook_output_udp(struct sk_buff *skb)
     return NF_ACCEPT;
 }
 
-#if RHEL_MAJOR == 7
+#if defined(RHEL_MAJOR) && RHEL_MAJOR == 7
 
 #ifndef __GENKSYMS__
 #define NF_HOOK_FN(x) \
