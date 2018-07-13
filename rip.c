@@ -29,7 +29,7 @@
 #define RIP_HOOKNUM_OUTPUT  NF_INET_LOCAL_OUT
 
 /* Avoid those in enum ip_conntrack_status. */
-#define RIP_STATUS_NEEDED_BIT 14
+#define RIP_STATUS_NEEDED_BIT 15
 
 #define RIP_OPCODE 200
 #define RIP_OPSIZE 8
@@ -108,7 +108,7 @@ static unsigned int rip_manipulate_tcp(struct sk_buff *skb,
 
     /* The packet is not for loopback so skip checking routing table. */
     } else if (rt && !(rt->rt_flags & RTCF_LOCAL) &&
-               skb->dev && (skb->dev->features & NETIF_F_V4_CSUM)) {
+               skb->dev && (skb->dev->features & NETIF_F_IP_CSUM)) {
 
         skb->ip_summed = CHECKSUM_PARTIAL;
         skb->csum_start = skb_headroom(skb) + skb_network_offset(skb) + iph->ihl * 4;
@@ -315,19 +315,73 @@ static unsigned int rip_hook_output_udp(struct sk_buff *skb)
     return NF_ACCEPT;
 }
 
-static unsigned int rip_inet_hook(
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 13, 0)
-        const struct nf_hook_ops *ops,
+#if RHEL_MAJOR == 7
+
+#ifndef __GENKSYMS__
+#define NF_HOOK_FN(x) \
+static unsigned int x( \
+        const struct nf_hook_ops *ops, \
+        struct sk_buff *skb, \
+        const struct net_device *in, \
+        const struct net_device *out, \
+        const struct nf_hook_state *state)
 #else
-        unsigned int hook,
-#endif
-        struct sk_buff *skb,
-        const struct net_device *in,
-        const struct net_device *out,
+#define NF_HOOK_FN(x) \
+static unsigned int x( \
+        const struct nf_hook_ops *ops, \
+        struct sk_buff *skb, \
+        const struct net_device *in, \
+        const struct net_device *out, \
         int (*okfn)(struct sk_buff *))
+#endif
+
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0)
+#define NF_HOOK_FN(x) \
+static unsigned int x( \
+        void *priv, \
+        struct sk_buff *skb, \
+        const struct nf_hook_state *state)
+
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0)
+#define NF_HOOK_FN(x) \
+static unsigned int x( \
+        const struct nf_hook_ops *ops, \
+        struct sk_buff *skb, \
+        const struct nf_hook_state *state)
+
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 13, 0)
+
+#define NF_HOOK_FN(x) \
+static unsigned int x( \
+        const struct nf_hook_ops *ops, \
+        struct sk_buff *skb, \
+        const struct net_device *in, \
+        const struct net_device *out, \
+        int (*okfn)(struct sk_buff *))
+
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 24)
+#define NF_HOOK_FN(x) \
+static unsigned int x( \
+        unsigned int hooknum, \
+        struct sk_buff *skb, \
+        const struct net_device *in, \
+        const struct net_device *out, \
+        int (*okfn)(struct sk_buff *))
+
+#else
+#define NF_HOOK_FN(x) \
+static unsigned int x( \
+        unsigned int hooknum, \
+        struct sk_buff **pskb, \
+        const struct net_device *in, \
+        const struct net_device *out, \
+        int (*okfn)(struct sk_buff *))
+#endif
+
+NF_HOOK_FN(rip_inet_hook_input)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 13, 0)
-    unsigned int hook = ops->hooknum;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
+    struct sk_buff *skb = *pskb;
 #endif
     struct iphdr *iph;
     unsigned int ret;
@@ -342,18 +396,39 @@ static unsigned int rip_inet_hook(
     }
 
     ret = NF_ACCEPT;
-    if (hook == RIP_HOOKNUM_INPUT) {
-        if (iph->protocol == IPPROTO_TCP) {
-            ret = rip_hook_input_tcp(skb);
-        } else if (iph->protocol == IPPROTO_UDP) {
-            ret = rip_hook_input_udp(skb);
-        }
-    } else if (hook == RIP_HOOKNUM_OUTPUT) {
-        if (iph->protocol == IPPROTO_TCP) {
-            ret = rip_hook_output_tcp(skb);
-        } else if (iph->protocol == IPPROTO_UDP) {
-            ret = rip_hook_output_udp(skb);
-        }
+
+    if (iph->protocol == IPPROTO_TCP) {
+        ret = rip_hook_input_tcp(skb);
+    } else if (iph->protocol == IPPROTO_UDP) {
+        ret = rip_hook_input_udp(skb);
+    }
+
+    return ret;
+}
+
+NF_HOOK_FN(rip_inet_hook_output)
+{
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
+    struct sk_buff *skb = *pskb;
+#endif
+    struct iphdr *iph;
+    unsigned int ret;
+
+    if (!skb) {
+        return NF_ACCEPT;
+    }
+
+    iph = rip_ip_hdr(skb);
+    if (!iph) {
+        return NF_ACCEPT;
+    }
+
+    ret = NF_ACCEPT;
+
+    if (iph->protocol == IPPROTO_TCP) {
+        ret = rip_hook_output_tcp(skb);
+    } else if (iph->protocol == IPPROTO_UDP) {
+        ret = rip_hook_output_udp(skb);
     }
 
     return ret;
@@ -361,12 +436,12 @@ static unsigned int rip_inet_hook(
 
 static struct nf_hook_ops lvshooks[] __read_mostly = {
     {
-        .hook = rip_inet_hook,
+        .hook = rip_inet_hook_input,
         .pf = PF_INET,
         .hooknum = RIP_HOOKNUM_INPUT,
         .priority = NF_IP_PRI_MANGLE,
     }, {
-        .hook = rip_inet_hook,
+        .hook = rip_inet_hook_output,
         .pf = PF_INET,
         .hooknum = RIP_HOOKNUM_OUTPUT,
         .priority = NF_IP_PRI_MANGLE,
